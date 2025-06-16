@@ -148,24 +148,44 @@ export default {
         },
         process: function (file) {
             this.state.file = file.name
-            this.state.processStatus = 'Pre-processing...'
-            this.state.processPercentage = 100
+            this.state.processStatus = 'Uploading and processing...'
+            this.state.processPercentage = 0
             this.file = file
-            const reader = new FileReader()
-            reader.onload = function (e) {
-                const data = reader.result
-                worker.postMessage({
-                    action: 'parse',
-                    file: data,
-                    isTlog: (file.name.endsWith('tlog')),
-                    isDji: (file.name.endsWith('txt'))
-                })
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const request = new XMLHttpRequest()
+            request.onload = () => {
+                if (request.status >= 200 && request.status < 400) {
+                    const response = JSON.parse(request.responseText)
+                    if (response.status === 'success') {
+                        this.state.processStatus = 'Processing complete'
+                        this.state.processPercentage = 100
+                        // Process the parsed data
+                        worker.postMessage({
+                            action: 'parse',
+                            file: response.data,
+                            isTlog: (file.name.endsWith('tlog')),
+                            isDji: (file.name.endsWith('txt'))
+                        })
+                    } else {
+                        this.state.processStatus = 'Error processing file'
+                        this.state.processPercentage = 100
+                        console.error('Error processing file:', response)
+                    }
+                } else {
+                    this.state.processStatus = 'Error uploading file'
+                    this.state.processPercentage = 100
+                    console.error('Error uploading file:', request.status)
+                }
             }
-            this.state.logType = file.name.endsWith('tlog') ? 'tlog' : 'bin'
-            if (file.name.endsWith('.txt')) {
-                this.state.logType = 'dji'
-            }
-            reader.readAsArrayBuffer(file)
+            request.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    this.state.processPercentage = 100 * e.loaded / e.total
+                }
+            })
+            request.open('POST', 'http://localhost:8001/upload-log')
+            request.send(formData)
         },
         uploadFile () {
             this.uploadStarted = true

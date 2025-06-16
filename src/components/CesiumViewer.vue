@@ -85,7 +85,17 @@ import {
 } from './cesiumExtra/boundingPolygon.js'
 
 // Set Cesium token from environment variable
-Ion.defaultAccessToken = process.env.VUE_APP_CESIUM_TOKEN || ''
+console.log('Environment variables:', process.env)
+const cesiumToken = process.env.VUE_APP_CESIUM_TOKEN || ''
+console.log('Cesium Token:', cesiumToken)
+
+// Initialize Cesium with token
+if (cesiumToken) {
+    Ion.defaultAccessToken = cesiumToken
+    console.log('Cesium token is set successfully')
+} else {
+    console.error('Cesium token is not set! Please check your .env file')
+}
 
 const colorCoderMode = new ColorCoderMode(store)
 const colorCoderRange = new ColorCoderRange(store)
@@ -141,6 +151,20 @@ export default {
             if (this.viewer == null) {
                 if (this.state.isOnline) {
                     this.viewer = this.createViewer(true)
+                    // Add base layer after viewer creation
+                    try {
+                        const baseLayer = new ImageryLayer(
+                            new UrlTemplateImageryProvider({
+                                url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                minimumLevel: 1,
+                                maximumLevel: 19,
+                                credit: '© OpenStreetMap contributors'
+                            })
+                        )
+                        this.viewer.imageryLayers.add(baseLayer)
+                    } catch (error) {
+                        console.error('Failed to load base imagery layer:', error)
+                    }
                     if (this.state.vehicle !== 'boat') {
                         this.viewer.terrainProvider = await createWorldTerrainAsync()
                     }
@@ -250,6 +274,10 @@ export default {
             if (online) {
                 console.log('creating online viewer')
                 const imageryProviders = this.createAdditionalProviders()
+                const additionalProviders = this.createAdditionalProviders()
+                additionalProviders.forEach(provider => {
+                    imageryProviders.push(provider)
+                })
                 return new Viewer(
                     'cesiumContainer',
                     {
@@ -261,10 +289,8 @@ export default {
                         scene3DOnly: false,
                         selectionIndicator: false,
                         shadows: true,
-                        // eslint-disable-next-line
-                        baseLayer: new ImageryLayer.fromProviderAsync(
-                            IonImageryProvider.fromAssetId(3954)
-                        ),
+                        baseLayerPicker: true,
+                        imageryProvider: false, // We'll add the base layer after viewer creation
                         imageryProviderViewModels: imageryProviders,
                         orderIndependentTranslucency: false,
                         useBrowserRecommendedResolution: false
@@ -293,22 +319,23 @@ export default {
         },
 
         createAdditionalProviders () {
-            /*
-            *  Creates and returns the providers for viewing the Eniro, Statkart, and OpenSeaMap map layers
-            * */
-            // const imageryProviders = createDefaultImageryProviderViewModels()
             const imageryProviders = []
+            // Add StatKart provider
             imageryProviders.push(new ProviderViewModel({
                 name: 'StatKart',
-                iconUrl: require('../assets/statkart.jpg').default,
-                tooltip: 'Statkart aerial imagery \nhttp://statkart.no/',
+                iconUrl: '/static/img/statkart.jpg',
+                tooltip: 'StatKart Topographic Maps',
                 creationFunction: function () {
                     return new UrlTemplateImageryProvider({
-                        url: 'http://opencache.statkart.no/gatekeeper/gk/gk.open_gmaps?layers=topo4&zoom={z}&x={x}&y={y}',
-                        credit: 'Map tiles by Statkart.'
+                        url: 'https://opencache.statkart.no/gatekeeper/gk/gk.open_gmaps?layers=topo4&zoom={z}&x={x}&y={y}',
+                        minimumLevel: 1,
+                        maximumLevel: 19,
+                        credit: '© Kartverket'
                     })
                 }
             }))
+
+            // Add MapTiler provider
             imageryProviders.push(new ProviderViewModel({
                 name: 'MapTiler',
                 iconUrl: require('../assets/maptiler.png').default,
@@ -321,51 +348,44 @@ export default {
                         credit: 'https://www.maptiler.com/copyright'
                     })
                 }
-            })
-            )
-            // save this one so it can be referenced when creating the cesium viewer
-            this.sentinelProvider = new ProviderViewModel({
+            }))
+
+            // Add Sentinel 2 provider
+            imageryProviders.push(new ProviderViewModel({
                 name: 'Sentinel 2',
                 iconUrl: '/Widgets/Images/ImageryProviders/sentinel-2.png',
                 tooltip: 'Sentinel 2 Imagery',
                 creationFunction: function () {
                     return ImageryLayer.fromProviderAsync(IonImageryProvider.fromAssetId(3812))
                 }
-            })
-            imageryProviders.push(this.sentinelProvider)
+            }))
+
+            // Add Eniro provider
             imageryProviders.push(new ProviderViewModel({
                 name: 'Eniro',
                 iconUrl: require('../assets/eniro.png').default,
                 tooltip: 'Eniro aerial imagery \nhttp://map.eniro.com/',
                 creationFunction: function () {
                     return new UrlTemplateImageryProvider({
-                        // url: 'http://map.eniro.com/geowebcache/service/tms1.0.0/map/{z}/{x}/{reverseY}.png',
                         url: '/eniro/{z}/{x}/{reverseY}.png',
                         credit: 'Map tiles by Eniro.'
                     })
                 }
             }))
+
+            // Add OpenSeaMap provider
             imageryProviders.push(new ProviderViewModel({
                 name: 'OpenSeaMap',
                 iconUrl: require('../assets/openseamap.png').default,
                 tooltip: 'OpenSeaMap Nautical Maps \nhttp://openseamap.org/',
-                parameters: {
-                    transparent: 'true',
-                    format: 'image/png'
-                },
                 creationFunction: function () {
-                    return [
-                        new UrlTemplateImageryProvider({
-                            url: 'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            credit: 'Map tiles by OpenStreetMap.'
-                        }),
-                        new UrlTemplateImageryProvider({
-                            url: 'http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
-                            credit: 'Map tiles by OpenSeaMap.'
-                        })
-                    ]
+                    return new UrlTemplateImageryProvider({
+                        url: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+                        credit: 'Map tiles by OpenSeaMap.'
+                    })
                 }
             }))
+
             return imageryProviders
         },
         async setup2 (updatedPositions) {

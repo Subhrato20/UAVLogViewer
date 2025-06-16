@@ -1,5 +1,9 @@
 'use strict'
 
+// Load environment variables from .env file BEFORE setting NODE_ENV
+const dotenv = require('dotenv')
+dotenv.config()
+
 process.env.NODE_ENV = 'development'
 
 const utils = require('./utils')
@@ -16,8 +20,7 @@ const cesiumSource =  'node_modules/cesium/Source'
 const cesiumWorkers = '../Build/Cesium/Workers'
 const GitRevisionPlugin = require('git-revision-webpack-plugin')
 const gitRevisionPlugin = new GitRevisionPlugin()
-const ESLintPlugin = require('eslint-webpack-plugin');
-
+// const ESLintPlugin = require('eslint-webpack-plugin');
 
 const HOST = '0.0.0.0'
 const PORT = process.env.PORT && Number(process.env.PORT)
@@ -57,9 +60,12 @@ const devWebpackConfig = merge(baseWebpackConfig, {
     proxy: config.dev.proxyTable,
   },
   plugins: [
-    new ESLintPlugin({fix: true}),
+    // new ESLintPlugin({fix: true}),
     new webpack.DefinePlugin({
-      'process.env': require('../config/dev.env'),
+      'process.env': {
+        NODE_ENV: '"development"',
+        VUE_APP_CESIUM_TOKEN: JSON.stringify(process.env.VUE_APP_CESIUM_TOKEN || require('../config/dev.env').VUE_APP_CESIUM_TOKEN || '')
+      },
       '_COMMIT_': JSON.stringify(gitRevisionPlugin.commithash()),
       '_BUILDDATE_': JSON.stringify((new Date().toString()))
     }),
@@ -78,6 +84,7 @@ const devWebpackConfig = merge(baseWebpackConfig, {
         { from: path.resolve(cesiumSource, 'Assets'), to: 'Assets' },
         { from: path.resolve(cesiumSource, 'Widgets'), to: 'Widgets' },
         { from: path.resolve(cesiumSource, 'ThirdParty/Workers'), to: 'ThirdParty/Workers' },
+        { from: path.resolve(__dirname, '../src/assets/statkart.jpg'), to: 'static/img/statkart.jpg' }
       ],
       options: {
         concurrency: 100
