@@ -2,15 +2,6 @@
 
 A web-based tool for viewing and analyzing MAVLink and Dataflash logs from ArduPilot-based vehicles.
 
-## Features
-
-- View flight paths on a 3D map
-- Plot flight data
-- Analyze flight parameters
-- Chat with an AI assistant about your flight data
-- Detect flight anomalies
-- View and analyze mission data
-- Export data to various formats
 
 ## Prerequisites
 
